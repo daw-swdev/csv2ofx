@@ -16,6 +16,7 @@ Examples:
 Attributes:
     ENCODING (str): Default file encoding.
 """
+import os
 import time
 import itertools as it
 import traceback
@@ -183,12 +184,39 @@ parser.add_argument(
 parser.add_argument(
     "-v", "--verbose", help="verbose output", action="store_true", default=False
 )
-
+parser.add_argument(
+    "-X",
+    "--extract-info",
+    action="store_true",
+    default=False,
+    help="extract account information from source pathname",
+)
 args = parser.parse_args()  # pylint: disable=C0103
+
+
+def get_account_id_from_path(path):
+    dname = os.path.basename(os.path.dirname(os.path.abspath(path)))
+    account_id = dname.split('-')[-1]
+    return account_id
+
+
+def get_account_type_from_path(path):
+    dname = os.path.basename(os.path.dirname(os.path.abspath(path)))
+    account_type = dname.split('-')[-2]
+    return account_type.upper()
+
+
+def get_mapping_from_path(path):
+    dname = os.path.basename(os.path.dirname(os.path.dirname(os.path.abspath(path))))
+    mapping = ''.join(filter(str.isupper, dname))
+    return mapping.lower()
 
 
 def run():  # noqa: C901
     """Parses the CLI options and runs the main program"""
+    if args.extract_info:
+        args.mapping = get_mapping_from_path(args.source)
+
     if args.debug:
         pprint(dict(args._get_kwargs()))  # pylint: disable=W0212
         exit(0)
@@ -212,8 +240,18 @@ def run():  # noqa: C901
 
     mapping = module.mapping
 
+    if args.extract_info:
+        new_mapping = {
+            "account_id": get_account_id_from_path(args.source),
+        }
+        mapping.update(new_mapping)
+        args.account_type = get_account_type_from_path(args.source)
+
+    if args.qif:
+        args.account_type = "Bank"
+
     okwargs = {
-        "def_type": args.account_type or "Bank" if args.qif else "CHECKING",
+        "def_type": args.account_type if args.account_type else "CHECKING",
         "start": parse(args.start, dayfirst=args.dayfirst) if args.start else None,
         "end": parse(args.end, dayfirst=args.dayfirst) if args.end else None,
     }
